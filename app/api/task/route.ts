@@ -117,14 +117,41 @@ export async function POST(req: NextRequest) {
     // Email notification (non-blocking)
     try {
       await sendMail({
-        from: `College Task System <${process.env.SMTP_USER}>`,
+        from: `College Task System (${session.user.name}) <${process.env.SMTP_USER}>`,
         to: assignee.email,
         subject: `New Task Assigned: ${task.title}`,
         html: `
-          <h3>New Task Assigned</h3>
-          <p><b>Title:</b> ${task.title}</p>
-          <p><b>Due:</b> ${task.dueDate.toUTCString()}</p>
-          <p><b>Priority:</b> ${task.priority}</p>
+         <p><strong>Respected ${assignee.name},</strong></p>
+
+            <p>
+              This is to formally inform you that a new task has been assigned by the
+              <strong>Head of Department</strong>.
+            </p>
+
+            <p><strong>Task Details are as follows:</strong></p>
+
+            <ul>
+              <li><strong>Title:</strong> ${task.title}</li>
+              <li><strong>Due Date:</strong> ${task.dueDate.toUTCString()}</li>
+              <li><strong>Priority:</strong> ${task.priority}</li>
+            </ul>
+
+            <p>
+              You are kindly requested to review the above task and ensure its completion
+              within the stipulated timeline. In case of any queries or clarification,
+              please feel free to get in touch.
+            </p>
+
+            <p>
+              Thank you for your time and cooperation.
+            </p>
+
+            <p>
+              <strong>Regards,</strong><br>
+              Task Management System<br>
+              ZEAL Institute of Engineering & Research
+            </p>
+
         `,
       })
     } catch (err) {

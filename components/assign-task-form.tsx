@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
@@ -12,6 +12,8 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { Loader2 } from "lucide-react"
+import { useSession } from "next-auth/react"
 import {
   Dialog,
   DialogContent,
@@ -48,6 +50,12 @@ const staffMembers = ["Prof. Rajesh Patil", "Dr. Sunita Deshmukh", "Mr. Amit Kul
 
 export function AssignTaskForm() {
   const [open, setOpen] = useState(false)
+  const [staffOptions, setStaffOptions] = useState<any[]>([])
+  const [fetchingStaff, setFetchingStaff] = useState(false)
+  const [assigning, setAssigning] = useState(false)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const { data: session } = useSession()
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -58,11 +66,88 @@ export function AssignTaskForm() {
     },
   })
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    // In a real app, this would be a server action or API call
-    console.log("[v0] Submitting new task:", values)
-    setOpen(false)
-    form.reset()
+  useEffect(() => {
+    // Load staff when dialog opens
+    if (!open) return
+
+    let mounted = true
+    async function loadStaff() {
+      setFetchingStaff(true)
+      setErrorMessage(null)
+      try {
+        const res = await fetch('/api/staff')
+        if (!res.ok) {
+          if (res.status === 401) throw new Error('Unauthorized. Please login.')
+          const body = await res.json().catch(() => ({}))
+          throw new Error(body?.message || 'Failed to fetch staff')
+        }
+        const data = await res.json()
+        if (!mounted) return
+        setStaffOptions(data.staff || [])
+      } catch (err: any) {
+        console.error('Failed to load staff', err)
+        setErrorMessage(err.message || 'Failed to load staff')
+      } finally {
+        if (mounted) setFetchingStaff(false)
+      }
+    }
+
+    loadStaff()
+
+    return () => {
+      mounted = false
+    }
+  }, [open])
+
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    setAssigning(true)
+    setErrorMessage(null)
+    setSuccessMessage(null)
+
+    if (!session || !session.user) {
+      setErrorMessage('You must be signed in to assign tasks')
+      setAssigning(false)
+      return
+    }
+
+    const priorityMap: Record<string, string> = {
+      Urgent: 'URGENT',
+      High: 'HIGH',
+      Medium: 'MEDIUM',
+      Low: 'LOW',
+    }
+
+    const payload = {
+      title: values.title,
+      description: values.description,
+      department: session.user.department,
+      assignedTo: values.assignedTo,
+      dueDate: values.dueDate.toISOString(),
+      priority: priorityMap[values.priority] || 'MEDIUM',
+    }
+
+    try {
+      const res = await fetch('/api/task', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(body?.message || 'Failed to assign task')
+      }
+
+      setSuccessMessage(body?.message || 'Task assigned successfully')
+      form.reset()
+      // close after short delay
+      setTimeout(() => setOpen(false), 900)
+    } catch (err: any) {
+      console.error('Assign failed', err)
+      setErrorMessage(err.message || 'Failed to assign task')
+    } finally {
+      setAssigning(false)
+    }
   }
 
   return (
@@ -110,11 +195,19 @@ export function AssignTaskForm() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {staffMembers.map((staff) => (
-                          <SelectItem key={staff} value={staff}>
-                            {staff}
-                          </SelectItem>
-                        ))}
+                        {fetchingStaff ? (
+                          <div className="p-3 flex items-center gap-2 text-sm text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" /> Loading staff...
+                          </div>
+                        ) : staffOptions.length === 0 ? (
+                          <div className="p-3 text-sm text-muted-foreground">No staff available</div>
+                        ) : (
+                          staffOptions.map((s: any) => (
+                            <SelectItem key={s._id} value={s._id}>
+                              {s.name} {s.empId ? `(${s.empId})` : ''}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -202,12 +295,25 @@ export function AssignTaskForm() {
               )}
             />
 
+            {errorMessage && <div className="text-sm text-red-600">{errorMessage}</div>}
+            {successMessage && <div className="text-sm text-green-600">{successMessage}</div>}
+
             <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => setOpen(false)} className="rounded-xl">
                 Cancel
               </Button>
-              <Button type="submit" className="font-bold px-8 rounded-xl shadow-md hover:shadow-lg transition-all">
-                Assign Task
+              <Button
+                type="submit"
+                className="font-bold px-8 rounded-xl shadow-md hover:shadow-lg transition-all"
+                disabled={assigning || fetchingStaff}
+              >
+                {assigning ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Assigning...
+                  </>
+                ) : (
+                  'Assign Task'
+                )}
               </Button>
             </DialogFooter>
           </form>

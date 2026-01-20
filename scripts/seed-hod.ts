@@ -13,7 +13,7 @@ async function seedHod() {
   
     await dbConnect()
 
-    console.log('✅ Connected to MongoDB')
+    console.log('Connected to MongoDB')
 
     // 2️⃣ Find existing department (or create one)
     let department = await Department.findOne({ code: 'CSE' })
@@ -28,7 +28,7 @@ async function seedHod() {
     }
 
     // 3️⃣ Check if HOD already exists
-    const empid = 'HOD001'
+    const empid = 'HOD002'
 
     const existing = await Hod.findOne({ empid })
 
@@ -57,7 +57,7 @@ async function seedHod() {
       passwordResetAt: null,
     })
 
-    console.log('🎉 HOD seeded successfully')
+    console.log('HOD seeded successfully')
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━')
     console.log(`EmpID    : ${hod.empid}`)
     console.log(`Email    : ${hod.email}`)
