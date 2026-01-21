@@ -2,6 +2,8 @@
 
 import { cn } from "@/lib/utils"
 import { useState } from "react"
+import { useSession } from "next-auth/react"
+import { Loader2 } from "lucide-react"
 import { AppShell } from "@/components/app-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -72,6 +74,19 @@ const staffData = [
 
 function StaffContent() {
   const [isAdding, setIsAdding] = useState(false)
+  const { data: session } = useSession()
+
+  // form state
+  const [fullName, setFullName] = useState('')
+  const [empId, setEmpId] = useState('')
+  const [email, setEmail] = useState('')
+  const [staffType, setStaffType] = useState('teaching')
+  const [designation, setDesignation] = useState('')
+  const [phone, setPhone] = useState('')
+
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [createSuccess, setCreateSuccess] = useState<string | null>(null)
 
   return (
     <AppShell>
@@ -100,21 +115,25 @@ function StaffContent() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="name">Full Name</Label>
-                    <Input id="name" placeholder="e.g. Prof. J. Doe" className="bg-muted/50" />
+                    <Input id="name" placeholder="e.g. Prof. J. Doe" className="bg-muted/50" value={fullName} onChange={(e) => setFullName(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="empId">Employee ID</Label>
-                    <Input id="empId" placeholder="ZES-XXXX" className="bg-muted/50" />
+                    <Input id="empId" placeholder="ZES-XXXX" className="bg-muted/50" value={empId} onChange={(e) => setEmpId(e.target.value)} />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Official Email</Label>
-                  <Input id="email" type="email" placeholder="name@zealedu.in" className="bg-muted/50" />
+                  <Input id="email" type="email" placeholder="name@zealedu.in" className="bg-muted/50" value={email} onChange={(e) => setEmail(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input id="phone" type="tel" placeholder="9000000000" className="bg-muted/50" value={phone} onChange={(e) => setPhone(e.target.value)} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="type">Staff Type</Label>
-                    <Select defaultValue="teaching">
+                    <Select value={staffType} onValueChange={(v) => setStaffType(v)}>
                       <SelectTrigger className="bg-muted/50">
                         <SelectValue placeholder="Select type" />
                       </SelectTrigger>
@@ -126,7 +145,7 @@ function StaffContent() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="designation">Designation</Label>
-                    <Input id="designation" placeholder="Asst. Professor" className="bg-muted/50" />
+                    <Input id="designation" placeholder="Asst. Professor" className="bg-muted/50" value={designation} onChange={(e) => setDesignation(e.target.value)} />
                   </div>
                 </div>
                 <div className="bg-primary/5 border border-primary/10 rounded-lg p-3">
@@ -140,12 +159,77 @@ function StaffContent() {
                 <Button variant="outline" onClick={() => setIsAdding(false)} className="rounded-xl">
                   Cancel
                 </Button>
-                <Button
-                  className="font-bold px-8 rounded-xl shadow-md hover:shadow-lg transition-all"
-                  onClick={() => setIsAdding(false)}
-                >
-                  Create Staff
-                </Button>
+                <div className="flex items-center gap-3">
+                  {createError && <div className="text-sm text-rose-600">{createError}</div>}
+                  {createSuccess && <div className="text-sm text-emerald-600">{createSuccess}</div>}
+                  <Button
+                    className="font-bold px-8 rounded-xl shadow-md hover:shadow-lg transition-all"
+                    onClick={async () => {
+                      // submit
+                      setCreateError(null)
+                      setCreateSuccess(null)
+                      setCreating(true)
+
+                      if (!session || !session.user) {
+                        setCreateError('You must be signed in as HOD to create staff')
+                        setCreating(false)
+                        return
+                      }
+
+                      // split name
+                      const parts = fullName.trim().split(/\s+/)
+                      const firstName = parts.shift() || ''
+                      const lastName = parts.join(' ') || ''
+
+                      const payload = {
+                        empid: empId,
+                        firstName,
+                        lastName,
+                        email,
+                        phone,
+                        department: session.user.department,
+                      }
+
+                      try {
+                        const res = await fetch('/api/staff', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(payload),
+                        })
+
+                        const body = await res.json().catch(() => ({}))
+                        if (!res.ok) {
+                          setCreateError(body?.message || (body?.errors ? body.errors.join(', ') : 'Failed to create staff'))
+                        } else {
+                          setCreateSuccess(body?.message || 'Staff created')
+                          // reset form
+                          setFullName('')
+                          setEmpId('')
+                          setEmail('')
+                          setPhone('')
+                          setDesignation('')
+                          setStaffType('teaching')
+                          // close dialog after brief delay
+                          setTimeout(() => setIsAdding(false), 900)
+                        }
+                      } catch (err: any) {
+                        console.error('Create staff failed', err)
+                        setCreateError(err?.message || 'Failed to create staff')
+                      } finally {
+                        setCreating(false)
+                      }
+                    }}
+                    disabled={creating}
+                  >
+                    {creating ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating...
+                      </>
+                    ) : (
+                      'Create Staff'
+                    )}
+                  </Button>
+                </div>
               </DialogFooter>
             </DialogContent>
           </Dialog>

@@ -266,8 +266,21 @@ export async function GET(req: NextRequest) {
     if (!session || !['HOD', 'STAFF'].includes(session.user.role)) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
     }
-
     await dbConnect()
+
+    // Parse query params for pagination & filtering
+    const url = new URL(req.url)
+    const pageParam = Number(url.searchParams.get('page') || '1')
+    const limitParam = Number(url.searchParams.get('limit') || '10')
+    const search = (url.searchParams.get('search') || '').trim()
+    const statusesParam = url.searchParams.get('statuses') || ''
+    const prioritiesParam = url.searchParams.get('priorities') || ''
+
+    const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1
+    const limit = Number.isFinite(limitParam) && limitParam > 0 && limitParam <= 100 ? limitParam : 10
+
+    const statuses = statusesParam ? statusesParam.split(',').map((s) => s.trim()).filter(Boolean) : []
+    const priorities = prioritiesParam ? prioritiesParam.split(',').map((p) => p.trim()).filter(Boolean) : []
 
     const query: any = {
       department: session.user.department,
@@ -277,12 +290,46 @@ export async function GET(req: NextRequest) {
       query.assignedTo = session.user.id
     }
 
+    // Search across title/description and populated assignee fields
+    if (search) {
+      const regex = { $regex: search, $options: 'i' }
+      query.$or = [
+        { title: regex },
+        { description: regex },
+      ]
+    }
+
+    if (statuses.length > 0) {
+      query.status = { $in: statuses }
+    }
+
+    if (priorities.length > 0) {
+      query.priority = { $in: priorities }
+    }
+
+    const total = await Task.countDocuments(query)
+
+    const totalPages = Math.ceil(total / limit)
+    const skip = (page - 1) * limit
+
+    // If requested page is beyond the last page, return empty
+    if (page > 1 && skip >= total) {
+      return NextResponse.json(
+        { tasks: [], page, limit, total, totalPages, hasMore: false },
+        { status: 200 }
+      )
+    }
+
     const tasks = await Task.find(query)
       .populate('assignedTo', 'name email empid')
       .populate('assignedBy', 'name email empid')
       .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
 
-    return NextResponse.json({ tasks }, { status: 200 })
+    const hasMore = skip + tasks.length < total
+
+    return NextResponse.json({ tasks, page, limit, total, totalPages, hasMore }, { status: 200 })
   } catch (error) {
     console.error('GET task error', error)
     return NextResponse.json(

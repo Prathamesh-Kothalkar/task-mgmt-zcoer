@@ -95,6 +95,7 @@ export async function POST(req: NextRequest) {
       name: `${body.firstName} ${body.lastName}`,
       email: body.email,
       phone: body.phone,
+      staffType: body.staffType || ['TEACHING'],
       department: session.user.department,
       role: 'STAFF',
       passwordHash: hashedPassword,

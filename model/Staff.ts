@@ -7,6 +7,7 @@ export interface IStaff extends Document {
   empId: string
   email: string
   phone?: string
+  staffType: ["TEACHING", "NON-TEACHING"]
   department: mongoose.Types.ObjectId
   role: 'STAFF'
   passwordHash: string
@@ -39,6 +40,12 @@ const StaffSchema = new Schema<IStaff>(
       required: false,
       unique: false,
       lowercase: true
+    },
+
+    staffType: {
+      type: [String],
+      enum: ['TEACHING', 'NON-TEACHING'],
+      default: ['TEACHING']
     },
 
     department: {

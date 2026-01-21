@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { AppShell } from "@/components/app-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,6 +21,7 @@ function TasksContent() {
   const [selectedTask, setSelectedTask] = useState<any | null>(null)
   const [tasks, setTasks] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
@@ -29,59 +30,103 @@ function TasksContent() {
 
   useEffect(() => {
     let mounted = true
-    async function load() {
-      setLoading(true)
-      setError(null)
-      try {
-        const res = await fetch('/api/task')
-        if (!res.ok) {
-          if (res.status === 401) throw new Error('Unauthorized. Please sign in.')
-          const body = await res.json().catch(() => ({}))
-          throw new Error(body?.message || 'Failed to load tasks')
-        }
-        const data = await res.json()
-        if (!mounted) return
-        setTasks(data.tasks || [])
-      } catch (err: any) {
-        console.error('Failed to load tasks', err)
-        setError(err.message || 'Failed to load tasks')
-      } finally {
-        if (mounted) setLoading(false)
-      }
-    }
-
-    // only load when authenticated or when status is loading, attempt anyway
-    load()
+    // initial load handled by fetchPage(1)
+    // no-op here; fetchPage will be triggered by effect below
 
     return () => {
       mounted = false
     }
   }, [])
 
-  // derived filtered tasks
-  const filteredTasks = tasks.filter((task) => {
-    // filter by query
-    const q = query.trim().toLowerCase()
-    if (q) {
-      const inTitle = task.title?.toLowerCase().includes(q)
-      const inDesc = task.description?.toLowerCase().includes(q)
-      const assignee = (task.assignedTo?.name || task.assignedTo || '').toLowerCase()
-      const emp = (task.assignedTo?.empid || '').toLowerCase()
-      if (!inTitle && !inDesc && !assignee.includes(q) && !emp.includes(q)) return false
+  // Pagination state
+  const limit = 10
+  const pageRef = useRef(1)
+  const hasMoreRef = useRef(true)
+  const abortRef = useRef<AbortController | null>(null)
+
+  async function fetchPage(page: number) {
+    if (!hasMoreRef.current && page > 1) return
+    if (abortRef.current) {
+      abortRef.current.abort()
+    }
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    if (page === 1) {
+      setLoading(true)
+      setError(null)
+    } else {
+      setLoadingMore(true)
     }
 
-    // filter by status (if any selected)
-    if (selectedStatuses.length > 0) {
-      if (!selectedStatuses.includes((task.status || 'PENDING').toString())) return false
-    }
+    try {
+      const params = new URLSearchParams()
+      params.set('page', String(page))
+      params.set('limit', String(limit))
+      if (query) params.set('search', query)
+      if (selectedStatuses.length > 0) params.set('statuses', selectedStatuses.join(','))
+      if (selectedPriorities.length > 0) params.set('priorities', selectedPriorities.join(','))
 
-    // filter by priority (if any selected)
-    if (selectedPriorities.length > 0) {
-      if (!selectedPriorities.includes((task.priority || 'MEDIUM').toString())) return false
-    }
+      const res = await fetch(`/api/task?${params.toString()}`, { signal: controller.signal })
+      if (!res.ok) {
+        if (res.status === 401) throw new Error('Unauthorized. Please sign in.')
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body?.message || 'Failed to load tasks')
+      }
 
-    return true
-  })
+      const body = await res.json()
+      const received: any[] = body.tasks || []
+
+      if (page === 1) {
+        setTasks(received)
+      } else {
+        setTasks((prev) => {
+          // avoid duplicates
+          const ids = new Set(prev.map((t) => String(t._id)))
+          const toAdd = received.filter((t) => !ids.has(String(t._id)))
+          return [...prev, ...toAdd]
+        })
+      }
+
+      hasMoreRef.current = !!body.hasMore
+      pageRef.current = page
+    } catch (err: any) {
+      if (err.name === 'AbortError') return
+      console.error('Failed to load tasks', err)
+      setError(err.message || 'Failed to load tasks')
+    } finally {
+      setLoading(false)
+      setLoadingMore(false)
+    }
+  }
+
+  // initial fetch and when filters change
+  useEffect(() => {
+    // reset pagination
+    pageRef.current = 1
+    hasMoreRef.current = true
+    fetchPage(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, selectedStatuses.join(','), selectedPriorities.join(',')])
+
+  // Infinite scroll observer
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const el = document.getElementById('load-more-sentinel')
+    if (!el) return
+    const obs = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting && !loadingMore && hasMoreRef.current) {
+          fetchPage(pageRef.current + 1)
+        }
+      }
+    })
+    obs.observe(el)
+    return () => obs.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingMore])
+
+  // server-side filtered tasks; `tasks` is the accumulated list from pages
 
   function statusBadgeClass(status: string) {
     switch (status) {
@@ -199,7 +244,7 @@ function TasksContent() {
                   >
                     Clear
                   </button>
-                  <div className="text-sm text-muted-foreground">{filteredTasks.length} results</div>
+                  <div className="text-sm text-muted-foreground">{tasks.length} results</div>
                 </div>
               </div>
             </PopoverContent>
@@ -207,7 +252,7 @@ function TasksContent() {
         </div>
 
         <div className="grid gap-4">
-          {loading ? (
+            {loading && tasks.length === 0 ? (
             <div className="p-6 text-sm text-muted-foreground">Loading tasks...</div>
           ) : error ? (
             <div className="p-6 text-sm text-red-600">{error}</div>
@@ -280,6 +325,15 @@ function TasksContent() {
                 </Card>
               )
             })
+          )}
+        </div>
+
+        {/* sentinel for infinite scroll */}
+        <div className="flex justify-center py-4">
+          {loadingMore ? (
+            <div className="text-sm text-muted-foreground">Loading more...</div>
+          ) : (
+            <div id="load-more-sentinel" />
           )}
         </div>
 
