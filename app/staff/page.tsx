@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { useState } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useSession } from "next-auth/react"
 import { Loader2 } from "lucide-react"
 import { AppShell } from "@/components/app-shell"
@@ -24,53 +24,17 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Suspense } from "react"
 
-const staffData = [
-  {
-    id: 1,
-    name: "Prof. Rajesh Patil",
-    email: "rajesh.patil@zealedu.in",
-    empId: "ZES-CS-101",
-    type: "Teaching",
-    status: "Active",
-    designation: "Asst. Professor",
-  },
-  {
-    id: 2,
-    name: "Dr. Sunita Deshmukh",
-    email: "sunita.d@zealedu.in",
-    empId: "ZES-CS-102",
-    type: "Teaching",
-    status: "Active",
-    designation: "Associate Professor",
-  },
-  {
-    id: 3,
-    name: "Mr. Amit Kulkarni",
-    email: "amit.k@zealedu.in",
-    empId: "ZES-CS-NT-01",
-    type: "Non-teaching",
-    status: "Active",
-    designation: "Lab Assistant",
-  },
-  {
-    id: 4,
-    name: "Ms. Priyanka Shinde",
-    email: "priyanka.s@zealedu.in",
-    empId: "ZES-CS-103",
-    type: "Teaching",
-    status: "Inactive",
-    designation: "Lecturer",
-  },
-  {
-    id: 5,
-    name: "Prof. Vinod More",
-    email: "vinod.m@zealedu.in",
-    empId: "ZES-CS-104",
-    type: "Teaching",
-    status: "Active",
-    designation: "Asst. Professor",
-  },
-]
+type StaffItem = {
+  _id?: string
+  empId?: string
+  name: string
+  email?: string
+  phone?: string
+  staffType?: string[]
+  isActive?: boolean
+  designation?: string
+}
+
 
 function StaffContent() {
   const [isAdding, setIsAdding] = useState(false)
@@ -87,6 +51,90 @@ function StaffContent() {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [createSuccess, setCreateSuccess] = useState<string | null>(null)
+  // fetched staff list
+  const [staffs, setStaffs] = useState<StaffItem[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [refreshFlag, setRefreshFlag] = useState(0)
+  // search & filter
+  const [query, setQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
+  const [typeFilter, setTypeFilter] = useState<'all' | 'teaching' | 'non-teaching'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
+
+  useEffect(() => {
+    const ac = new AbortController()
+    let mounted = true
+
+    async function load() {
+      setIsLoading(true)
+      setFetchError(null)
+
+      try {
+        const res = await fetch('/api/staff', { method: 'GET', credentials: 'same-origin', signal: ac.signal })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          if (!mounted) return
+          setFetchError(body?.message || 'Failed to load staff')
+          setStaffs([])
+        } else {
+          const body = await res.json()
+          if (!mounted) return
+          setStaffs(Array.isArray(body?.staff) ? body.staff : [])
+        }
+      } catch (err: any) {
+        if (err.name === 'AbortError') return
+        console.error('Failed to fetch staff', err)
+        if (!mounted) return
+        setFetchError(err?.message || 'Failed to fetch staff')
+      } finally {
+        if (mounted) setIsLoading(false)
+      }
+    }
+
+    load()
+    return () => {
+      mounted = false
+      ac.abort()
+    }
+  }, [refreshFlag, session])
+
+  // debounce query
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), 300)
+    return () => clearTimeout(t)
+  }, [query])
+
+  // client-side filtered results
+  const filteredStaffs = useMemo(() => {
+    const q = debouncedQuery.toLowerCase()
+    return staffs.filter((s) => {
+      if (!s) return false
+
+      // status filter
+      if (statusFilter !== 'all') {
+        const isActive = !!s.isActive
+        if (statusFilter === 'active' && !isActive) return false
+        if (statusFilter === 'inactive' && isActive) return false
+      }
+
+      // type filter
+      if (typeFilter !== 'all') {
+        const types = (s.staffType || []).map((t) => String(t).toLowerCase())
+        if (typeFilter === 'teaching' && !types.includes('teaching') && !types.includes('TEACHING')) return false
+        if (typeFilter === 'non-teaching' && !types.includes('non-teaching') && !types.includes('NON-TEACHING')) return false
+      }
+
+      if (!q) return true
+
+      // match name, email, empId
+      const name = (s.name || '').toLowerCase()
+      const email = (s.email || '').toLowerCase()
+      const emp = (s.empId || '').toLowerCase()
+      return name.includes(q) || email.includes(q) || emp.includes(q)
+    })
+  }, [staffs, debouncedQuery, typeFilter, statusFilter])
 
   return (
     <AppShell>
@@ -209,6 +257,8 @@ function StaffContent() {
                           setPhone('')
                           setDesignation('')
                           setStaffType('teaching')
+                          // refresh staff list
+                          setRefreshFlag((f) => f + 1)
                           // close dialog after brief delay
                           setTimeout(() => setIsAdding(false), 900)
                         }
@@ -241,66 +291,137 @@ function StaffContent() {
             <Input
               placeholder="Search by name, ID or email..."
               className="pl-10 h-11 bg-card border-none shadow-sm focus-visible:ring-primary"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              aria-label="Search staff"
             />
           </div>
-          <Button variant="outline" size="icon" className="h-11 w-11 bg-card border-none shadow-sm">
-            <Filter className="h-4 w-4" />
-          </Button>
+
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-11 w-11 bg-card border-none shadow-sm"
+              onClick={() => setShowFilters((s) => !s)}
+              aria-expanded={showFilters}
+              aria-pressed={showFilters}
+            >
+              <Filter className="h-4 w-4" />
+            </Button>
+
+            {showFilters && (
+              <div className="absolute right-0 mt-2 w-64 bg-popover border rounded shadow p-4 z-20">
+                <div className="space-y-3">
+                  <div>
+                    <Label>Type</Label>
+                    <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as any)}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue>{typeFilter === 'all' ? 'All' : typeFilter === 'teaching' ? 'Teaching' : 'Non-teaching'}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="teaching">Teaching</SelectItem>
+                        <SelectItem value="non-teaching">Non-teaching</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label>Status</Label>
+                    <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue>{statusFilter === 'all' ? 'All' : statusFilter === 'active' ? 'Active' : 'Inactive'}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="ghost" onClick={() => { setTypeFilter('all'); setStatusFilter('all'); setQuery(''); setShowFilters(false); }}>
+                      Reset
+                    </Button>
+                    <Button onClick={() => setShowFilters(false)}>Apply</Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-          {staffData.map((staff) => (
-            <Card key={staff.id} className="border-none shadow-sm hover:shadow-md transition-all overflow-hidden group">
-              <CardContent className="p-0 flex h-full">
-                <div className={cn("w-1.5 h-full", staff.status === "Active" ? "bg-emerald-500" : "bg-muted")} />
-                <div className="p-5 flex-1 flex flex-col sm:flex-row sm:items-center gap-4">
-                  <Avatar className="h-16 w-16 border-4 border-muted group-hover:border-primary/20 transition-colors">
-                    <AvatarFallback className="bg-primary/10 text-primary font-bold text-lg">
-                      {staff.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-bold text-lg leading-none">{staff.name}</h3>
-                      <Badge
-                        variant={staff.status === "Active" ? "default" : "secondary"}
-                        className={cn(
-                          "text-[10px] font-bold uppercase tracking-widest px-2 py-0.5",
-                          staff.status === "Active" && "bg-emerald-500 hover:bg-emerald-600",
-                        )}
-                      >
-                        {staff.status}
-                      </Badge>
-                    </div>
-                    <p className="text-xs font-bold text-primary/80 uppercase tracking-wide">
-                      {staff.designation} • {staff.type}
-                    </p>
+          {isLoading ? (
+            <div className="col-span-full flex items-center justify-center py-12">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              <span className="text-sm text-muted-foreground">Loading staff...</span>
+            </div>
+          ) : fetchError ? (
+            <div className="col-span-full p-6 bg-rose-50 text-rose-700 rounded">
+              <strong>Failed to load staff:</strong> {fetchError}
+            </div>
+          ) : filteredStaffs.length === 0 ? (
+            <div className="col-span-full p-6 bg-muted/5 rounded text-muted-foreground">No staff match your search or filters.</div>
+          ) : (
+            filteredStaffs.map((staff) => {
+              const status = staff.isActive ? 'Active' : 'Inactive'
+              const typeLabel = staff.staffType && staff.staffType.length > 0 ? (staff.staffType[0].toLowerCase() === 'non-teaching' || staff.staffType[0] === 'NON-TEACHING' ? 'Non-teaching' : 'Teaching') : '—'
+              return (
+                <Card key={staff._id || staff.empId} className="border-none shadow-sm hover:shadow-md transition-all overflow-hidden group">
+                  <CardContent className="p-0 flex h-full">
+                    <div className={cn('w-1.5 h-full', status === 'Active' ? 'bg-emerald-500' : 'bg-muted')} />
+                    <div className="p-5 flex-1 flex flex-col sm:flex-row sm:items-center gap-4">
+                      <Avatar className="h-16 w-16 border-4 border-muted group-hover:border-primary/20 transition-colors">
+                        <AvatarFallback className="bg-primary/10 text-primary font-bold text-lg">
+                          {staff.name
+                            .split(' ')
+                            .map((n) => n[0])
+                            .join('')}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-bold text-lg leading-none">{staff.name}</h3>
+                          <Badge
+                            variant={status === 'Active' ? 'default' : 'secondary'}
+                            className={cn(
+                              'text-[10px] font-bold uppercase tracking-widest px-2 py-0.5',
+                              status === 'Active' && 'bg-emerald-500 hover:bg-emerald-600',
+                            )}
+                          >
+                            {status}
+                          </Badge>
+                        </div>
+                        <p className="text-xs font-bold text-primary/80 uppercase tracking-wide">
+                          {staff.designation || '—'} • {typeLabel}
+                        </p>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-1 gap-x-4 pt-2">
-                      <div className="flex items-center text-xs text-muted-foreground">
-                        <Mail className="h-3 w-3 mr-2 text-primary" />
-                        {staff.email}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-1 gap-x-4 pt-2">
+                          <div className="flex items-center text-xs text-muted-foreground">
+                            <Mail className="h-3 w-3 mr-2 text-primary" />
+                            {staff.email}
+                          </div>
+                          <div className="flex items-center text-xs text-muted-foreground">
+                            <IdCard className="h-3 w-3 mr-2 text-primary" />
+                            {staff.empId}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center text-xs text-muted-foreground">
-                        <IdCard className="h-3 w-3 mr-2 text-primary" />
-                        {staff.empId}
-                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-2 right-2 sm:static h-8 w-8 text-muted-foreground"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
                     </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute top-2 right-2 sm:static h-8 w-8 text-muted-foreground"
-                  >
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  </CardContent>
+                </Card>
+              )
+            })
+          )}
         </div>
       </div>
     </AppShell>

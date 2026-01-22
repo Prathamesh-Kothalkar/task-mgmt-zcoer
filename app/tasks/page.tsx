@@ -18,143 +18,140 @@ import { AssignTaskForm } from "@/components/assign-task-form"
 // client-side tasks state will be populated from the backend
 
 function TasksContent() {
-  const [selectedTask, setSelectedTask] = useState<any | null>(null)
+   const [selectedTask, setSelectedTask] = useState<any | null>(null)
   const [tasks, setTasks] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [query, setQuery] = useState('')
+
+  const [query, setQuery] = useState("")
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
   const [selectedPriorities, setSelectedPriorities] = useState<string[]>([])
-  const { data: session, status } = useSession()
 
-  useEffect(() => {
-    let mounted = true
-    // initial load handled by fetchPage(1)
-    // no-op here; fetchPage will be triggered by effect below
+  const { status } = useSession()
 
-    return () => {
-      mounted = false
-    }
-  }, [])
-
-  // Pagination state
+  /* ---------- pagination ---------- */
   const limit = 10
-  const pageRef = useRef(1)
+  const pageRef = useRef(0)          // IMPORTANT
   const hasMoreRef = useRef(true)
   const abortRef = useRef<AbortController | null>(null)
 
   async function fetchPage(page: number) {
     if (!hasMoreRef.current && page > 1) return
-    if (abortRef.current) {
-      abortRef.current.abort()
-    }
+
+    abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
 
-    if (page === 1) {
-      setLoading(true)
-      setError(null)
-    } else {
-      setLoadingMore(true)
-    }
+    page === 1 ? setLoading(true) : setLoadingMore(true)
 
     try {
       const params = new URLSearchParams()
-      params.set('page', String(page))
-      params.set('limit', String(limit))
-      if (query) params.set('search', query)
-      if (selectedStatuses.length > 0) params.set('statuses', selectedStatuses.join(','))
-      if (selectedPriorities.length > 0) params.set('priorities', selectedPriorities.join(','))
+      params.set("page", String(page))
+      params.set("limit", String(limit))
+      if (query) params.set("search", query)
+      if (selectedStatuses.length)
+        params.set("statuses", selectedStatuses.join(","))
+      if (selectedPriorities.length)
+        params.set("priorities", selectedPriorities.join(","))
 
-      const res = await fetch(`/api/task?${params.toString()}`, { signal: controller.signal })
+      const res = await fetch(`/api/task?${params}`, {
+        signal: controller.signal,
+      })
+
       if (!res.ok) {
-        if (res.status === 401) throw new Error('Unauthorized. Please sign in.')
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body?.message || 'Failed to load tasks')
+        if (res.status === 401) throw new Error("Please sign in")
+        throw new Error("Failed to load tasks")
       }
 
       const body = await res.json()
-      const received: any[] = body.tasks || []
+      const received = body.tasks ?? []
 
-      if (page === 1) {
-        setTasks(received)
-      } else {
-        setTasks((prev) => {
-          // avoid duplicates
-          const ids = new Set(prev.map((t) => String(t._id)))
-          const toAdd = received.filter((t) => !ids.has(String(t._id)))
-          return [...prev, ...toAdd]
-        })
-      }
+      setTasks(prev =>
+        page === 1
+          ? received
+          : [
+              ...prev,
+              ...received.filter(
+                t => !prev.some(p => String(p._id) === String(t._id))
+              ),
+            ]
+      )
 
-      hasMoreRef.current = !!body.hasMore
       pageRef.current = page
+      hasMoreRef.current = Boolean(body.hasMore)
     } catch (err: any) {
-      if (err.name === 'AbortError') return
-      console.error('Failed to load tasks', err)
-      setError(err.message || 'Failed to load tasks')
+      if (err.name !== "AbortError") setError(err.message)
     } finally {
       setLoading(false)
       setLoadingMore(false)
     }
   }
 
-  // initial fetch and when filters change
+  /* ---------- initial load + filters ---------- */
   useEffect(() => {
-    // reset pagination
-    pageRef.current = 1
-    hasMoreRef.current = true
-    fetchPage(1)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, selectedStatuses.join(','), selectedPriorities.join(',')])
+    if (status === "loading") return
 
-  // Infinite scroll observer
-  const sentinelRef = useRef<HTMLDivElement | null>(null)
+    if (status === "unauthenticated") {
+      setTasks([])
+      setLoading(false)
+      setError("Please sign in to view tasks")
+      return
+    }
+
+    pageRef.current = 0
+    hasMoreRef.current = true
+    setError(null)
+    fetchPage(1)
+  }, [status, query, selectedStatuses.join(","), selectedPriorities.join(",")])
+
+  /* ---------- infinite scroll (FIXED) ---------- */
   useEffect(() => {
-    const el = document.getElementById('load-more-sentinel')
+    const el = document.getElementById("load-more-sentinel")
     if (!el) return
-    const obs = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.isIntersecting && !loadingMore && hasMoreRef.current) {
-          fetchPage(pageRef.current + 1)
-        }
+
+    const observer = new IntersectionObserver(entries => {
+      if (
+        entries[0].isIntersecting &&
+        !loading &&
+        !loadingMore &&
+        hasMoreRef.current &&
+        tasks.length > 0
+      ) {
+        fetchPage(pageRef.current + 1)
       }
     })
-    obs.observe(el)
-    return () => obs.disconnect()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingMore])
 
-  // server-side filtered tasks; `tasks` is the accumulated list from pages
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [loading, loadingMore, tasks.length])
 
+  /* ---------- badge helpers (UNCHANGED) ---------- */
   function statusBadgeClass(status: string) {
     switch (status) {
-      case 'COMPLETED':
-        return 'border-emerald-500 text-emerald-700 bg-emerald-50'
-      case 'IN_PROGRESS':
-        return 'border-sky-500 text-sky-700 bg-sky-50'
-      case 'OVERDUE':
-        return 'border-rose-500 text-rose-700 bg-rose-50'
-      case 'REJECTED':
-        return 'border-zinc-500 text-zinc-700 bg-zinc-50'
-      case 'PENDING':
+      case "COMPLETED":
+        return "border-emerald-500 text-emerald-700 bg-emerald-50"
+      case "IN_PROGRESS":
+        return "border-sky-500 text-sky-700 bg-sky-50"
+      case "OVERDUE":
+        return "border-rose-500 text-rose-700 bg-rose-50"
+      case "REJECTED":
+        return "border-zinc-500 text-zinc-700 bg-zinc-50"
       default:
-        return 'border-amber-500 text-amber-700 bg-amber-50'
+        return "border-amber-500 text-amber-700 bg-amber-50"
     }
   }
 
   function priorityBadgeClass(priority: string) {
     switch (priority) {
-      case 'URGENT':
-        return 'bg-rose-600 text-white'
-      case 'HIGH':
-        return 'bg-amber-500 text-white'
-      case 'MEDIUM':
-        return 'bg-amber-100 text-amber-700'
-      case 'LOW':
+      case "URGENT":
+        return "bg-rose-600 text-white"
+      case "HIGH":
+        return "bg-amber-500 text-white"
+      case "MEDIUM":
+        return "bg-amber-100 text-amber-700"
       default:
-        return 'bg-emerald-100 text-emerald-700'
+        return "bg-emerald-100 text-emerald-700"
     }
   }
 
