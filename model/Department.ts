@@ -7,6 +7,13 @@ export interface IDepartment extends Document {
   description?: string
   hod?: mongoose.Types.ObjectId
   isActive: boolean
+  totalTask:number
+  completedTask:number
+  pendingTask:number
+  overdueTask:number
+  totalStaff:number
+  activeStaff:number
+  inactiveStaff:number
   createdAt: Date
   updatedAt: Date
 }
@@ -42,6 +49,13 @@ const DepartmentSchema = new Schema<IDepartment>(
       type: Boolean,
       default: true,
     },
+    totalTask: { type: Number, default: 0 },
+    completedTask: { type: Number, default: 0 },
+    pendingTask: { type: Number, default: 0 },
+    overdueTask: { type: Number, default: 0 },
+    totalStaff: { type: Number, default: 0 },
+    activeStaff: { type: Number, default: 0 },
+    inactiveStaff: { type: Number, default: 0 },
   },
   {
     timestamps: true, // auto createdAt & updatedAt

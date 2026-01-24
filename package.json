@@ -8,7 +8,8 @@
     "lint": "eslint .",
     "start": "next start",
     "seed-hod": "ts-node -r tsconfig-paths/register scripts/seed-hod.ts",
-    "seed-dept": "ts-node -r tsconfig-paths/register scripts/seed-dept.ts"
+    "seed-dept": "ts-node -r tsconfig-paths/register scripts/seed-dept.ts",
+    "mark-overdue": "ts-node -r tsconfig-paths/register scripts/mark-overdue.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
