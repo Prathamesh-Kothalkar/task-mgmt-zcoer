@@ -31,8 +31,8 @@ function TasksContent() {
   const { status } = useSession()
 
   /* ---------- pagination ---------- */
-  const limit = 2
-  const pageRef = useRef(0)          // IMPORTANT
+  const limit = 10
+  const pageRef = useRef(0)         
   const hasMoreRef = useRef(true)
   const abortRef = useRef<AbortController | null>(null)
 

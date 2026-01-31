@@ -158,10 +158,40 @@ export async function GET(req: NextRequest) {
     await dbConnect()
 
     // Fetch staff in same department
-    let users=await Staff.find({ department: session.user.department }).select('-passwordHash -__v');
+    let users=await Staff.find({ department: session.user.department, isActive: true }).select('-passwordHash -__v');
     return NextResponse.json({ staff: users }, { status: 200 })
 
     
+  }catch (error) {
+    console.error(error)
+    return NextResponse.json(
+      { message: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+//Update Staff Info - email, phone, staffType,
+export async function PUT(req: NextRequest) {
+  try{
+    const session = await getServerSession(authOptions)
+    // Auth check
+    if (!session || (session.user.role !== 'HOD')) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+    }
+    const body = await req.json()
+    await dbConnect()
+    // Update staff info
+    const staff=await Staff.findOne({ empId: body.empid, department: session.user.department });
+    if(!staff){
+      return NextResponse.json({ message: 'Staff not found' }, { status: 404 })
+    }
+    staff.name=body.firstName && body.lastName ? `${body.firstName} ${body.lastName}` : staff.name;
+    staff.email=body.email || staff.email;
+    staff.phone=body.phone || staff.phone;
+    staff.staffType=body.staffType || staff.staffType;
+    await staff.save();
+    return NextResponse.json({ message: 'Staff Updated' }, { status: 200 })  
   }catch (error) {
     console.error(error)
     return NextResponse.json(

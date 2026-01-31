@@ -31,9 +31,9 @@ export default function DashboardPage() {
         const json = await res.json()
         if (mounted) setData(json)
         
-        const result = await fetch('/api/task/mark-overdue', { method: 'POST' })
-        if (!result.ok) console.error('Failed to mark overdue tasks')
-        else console.log('Overdue tasks updated')
+        // const result = await fetch('/api/task/mark-overdue', { method: 'POST' })
+        // if (!result.ok) console.error('Failed to mark overdue tasks')
+        // else console.log('Overdue tasks updated')
         
       } catch (err) {
         console.error(err)

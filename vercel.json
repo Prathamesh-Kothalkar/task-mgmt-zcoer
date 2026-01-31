@@ -1,0 +1,11 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/task-automation",
+      "schedule": "0 3 * * *",
+      "headers": {
+        "authorization": "Bearer @cron_secret"
+      }
+    }
+  ]
+}

@@ -10,6 +10,7 @@ export interface ITask extends Document {
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'OVERDUE' | 'REJECTED'
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
   dueDate: Date
+  reminderSent: boolean
   createdAt: Date
   updatedAt: Date
 }
@@ -50,7 +51,8 @@ const TaskSchema = new Schema<ITask>(
       default: 'MEDIUM'
     },
 
-    dueDate: { type: Date, required: true }
+    dueDate: { type: Date, required: true },
+    reminderSent: { type: Boolean, default: false }
   },
   { timestamps: true }
 )
