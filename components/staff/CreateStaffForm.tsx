@@ -77,7 +77,7 @@ export default function CreateStaffForm({ onCreated }: { onCreated?: () => void 
         setEmail('')
         setPhone('')
         setDesignation('')
-        setStaffType('teaching')
+        setStaffType('TEACHING')
         // callback
         onCreated && onCreated()
         // close dialog after brief delay
@@ -138,8 +138,8 @@ export default function CreateStaffForm({ onCreated }: { onCreated?: () => void 
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="teaching">Teaching</SelectItem>
-                  <SelectItem value="non-teaching">Non-teaching</SelectItem>
+                  <SelectItem value="TEACHING">Teaching</SelectItem>
+                  <SelectItem value="NON-TEACHING">Non-teaching</SelectItem>
                 </SelectContent>
               </Select>
             </div>

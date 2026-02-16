@@ -2,22 +2,12 @@
 
 import { useState, useEffect, useMemo, Suspense } from "react"
 import { useSession } from "next-auth/react"
-import { Loader2, Search, Filter, UserPlus } from "lucide-react"
+import { Loader2, Search } from "lucide-react"
 
 import { AppShell } from "@/components/app-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog"
+import CreateStaffForm from "@/components/staff/CreateStaffForm"
 
 import StaffCard from "@/components/staff/StaffCard"
 
@@ -35,19 +25,7 @@ type StaffItem = {
 function StaffContent() {
   const { data: session } = useSession()
 
-  const [isAdding, setIsAdding] = useState(false)
-
-  // form state
-  const [fullName, setFullName] = useState("")
-  const [empId, setEmpId] = useState("")
-  const [email, setEmail] = useState("")
-  const [phone, setPhone] = useState("")
-  const [designation, setDesignation] = useState("")
-  const [staffType, setStaffType] = useState<"teaching" | "non-teaching">("teaching")
-
-  const [creating, setCreating] = useState(false)
-  const [createError, setCreateError] = useState<string | null>(null)
-  const [createSuccess, setCreateSuccess] = useState<string | null>(null)
+  // create staff handled by `CreateStaffForm`
 
   // staff list
   const [staffs, setStaffs] = useState<StaffItem[]>([])
@@ -150,90 +128,7 @@ function StaffContent() {
             </p>
           </div>
 
-          <Dialog open={isAdding} onOpenChange={setIsAdding}>
-            <DialogTrigger asChild>
-              <Button>
-                <UserPlus className="mr-2 h-4 w-4" />
-                Add Staff
-              </Button>
-            </DialogTrigger>
-
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Register New Staff</DialogTitle>
-                <DialogDescription>
-                  Credentials will be emailed automatically.
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="space-y-4">
-                <Input placeholder="Full Name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
-                <Input placeholder="Employee ID" value={empId} onChange={(e) => setEmpId(e.target.value)} />
-                <Input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-                <Input placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-                <Input placeholder="Designation" value={designation} onChange={(e) => setDesignation(e.target.value)} />
-
-                <Select value={staffType} onValueChange={(v) => setStaffType(v as any)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="teaching">Teaching</SelectItem>
-                    <SelectItem value="non-teaching">Non-teaching</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <DialogFooter>
-                <Button
-                  disabled={creating}
-                  onClick={async () => {
-                    setCreating(true)
-                    setCreateError(null)
-
-                    if (!session?.user) {
-                      setCreateError("Not authorized")
-                      setCreating(false)
-                      return
-                    }
-
-                    const [firstName, ...rest] = fullName.trim().split(/\s+/)
-
-                    const payload = {
-                      empid: empId,
-                      firstName,
-                      lastName: rest.join(" "),
-                      email,
-                      phone,
-                      designation,
-                      staffType: [staffType], // ✅ CRITICAL FIX
-                      department: session.user.department,
-                    }
-
-                    try {
-                      const res = await fetch("/api/staff", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(payload),
-                      })
-
-                      if (!res.ok) throw new Error("Failed to create staff")
-
-                      setCreateSuccess("Staff created")
-                      setRefreshFlag((f) => f + 1)
-                      setIsAdding(false)
-                    } catch (e: any) {
-                      setCreateError(e.message)
-                    } finally {
-                      setCreating(false)
-                    }
-                  }}
-                >
-                  {creating ? "Creating..." : "Create Staff"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <CreateStaffForm onCreated={() => setRefreshFlag((f) => f + 1)} />
         </div>
 
         {/* Search */}

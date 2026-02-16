@@ -26,6 +26,23 @@ function generatePassword(length = 12): string {
 }
 
 
+//------------------
+// Generate Reset Token
+//------------------
+
+function generateResetToken(): string{
+  const chars =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012345678901203*'
+  let resetToken = ''
+  for (let i = 0; i < 19; i++) {
+    resetToken += chars[Math.floor(Math.random() * chars.length)]
+  }
+
+  return resetToken;
+
+}
+
+
 
 // --------------------
 // Validation
@@ -88,6 +105,7 @@ export async function POST(req: NextRequest) {
 
     const plainPassword = generatePassword()
     const hashedPassword = await bcrypt.hash(plainPassword, 10)
+    const resetToke=generateResetToken();
 
     //Create Staff
     const staff = await Staff.create({
@@ -98,6 +116,8 @@ export async function POST(req: NextRequest) {
       staffType: body.staffType || ['TEACHING'],
       department: session.user.department,
       role: 'STAFF',
+      passwordResetToken:resetToke,
+      passwordResetValid:true,
       passwordHash: hashedPassword,
       requiredChangePassword: true,
       isActive: true,
@@ -114,7 +134,7 @@ export async function POST(req: NextRequest) {
           <p>Your staff account has been created.</p>
           <p><strong>Employee ID:</strong> ${staff.empId}</p>
           <p><strong>Password:</strong> ${plainPassword}</p>
-          <p style="color:red"><b>Please change your password after first login.</b></p>
+          <p style="color:red"><b>You can change your Password by Click this unique link: <a  href="${process.env.URL}/reset-password?ref=${resetToke}">Link Here</a></b></p>
         `,
       })
     } catch (emailErr) {

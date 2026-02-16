@@ -9,7 +9,7 @@ import { LayoutDashboard, Users, CheckSquare, Bell, User, LogOut, ChevronRight }
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { signOut } from "next-auth/react"
+import { signOut, useSession } from "next-auth/react"
 import Image from "next/image"
 
 const navItems = [
@@ -23,6 +23,11 @@ const navItems = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
+  const { data: session } = useSession()
+  
+  const user = session?.user
+
+
 
   const activeItem = navItems.find((item) => pathname.startsWith(item.href)) || navItems[0]
 
@@ -70,8 +75,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <AvatarFallback className="bg-primary text-primary-foreground text-xs">HK</AvatarFallback>
             </Avatar>
             <div className="flex-1 overflow-hidden">
-              <p className="text-sm font-semibold truncate">Dr. Hemant K.</p>
-              <p className="text-[10px] text-muted-foreground truncate uppercase">Computer Dept HOD</p>
+              <p className="text-sm font-semibold truncate">{user?.name || "Login to view"}</p>
+              <p className="text-[10px] text-muted-foreground truncate uppercase">{user?.deptName || "Login to view"}</p>
             </div>
             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => signOut()}>
               <LogOut className="h-4 w-4"  />
@@ -101,7 +106,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex flex-col items-end">
               <span className="text-xs font-semibold px-2 py-0.5 bg-primary/10 text-primary rounded-full">
-                Computer Engineering
+                {user?.deptName || "Login to view  "}
               </span>
             </div>
             <Button variant="ghost" size="icon" className="relative h-9 w-9">

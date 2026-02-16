@@ -16,6 +16,8 @@ export interface IStaff extends Document {
   lastLogin: Date | null
   failedLoginAttempts: number
   lockUntil: Date | null
+  passwordResetToken: string |null
+  passwordResetValid: boolean|null
   passwordChangedAt: Date | null
   passwordResetAt: Date | null
   createdAt: Date
@@ -71,6 +73,10 @@ const StaffSchema = new Schema<IStaff>(
     lockUntil: { type: Date, default: null },
 
     requiredChangePassword:{type:Boolean, default:true},
+
+    passwordResetToken:{type:String},
+
+    passwordResetValid:{type:Boolean, default:true},
 
     passwordChangedAt: { type: Date, default: null },
 

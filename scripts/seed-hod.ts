@@ -16,24 +16,24 @@ async function seedHod() {
     console.log('Connected to MongoDB')
 
     // 2️⃣ Find existing department (or create one)
-    let department = await Department.findOne({ code: 'CSE' })
+    let department = await Department.findOne({ code: 'IT' })
 
     if (!department) {
       department = await Department.create({
-        name: 'Computer Science & Engineering',
-        code: 'CSE',
+        name: 'Information Technology',
+        code: 'IT',
         isActive: true,
       })
       console.log('🆕 Department created')
     }
 
     // 3️⃣ Check if HOD already exists
-    const empid = 'HOD002'
+    const empid = 'HOD001'
 
     const existing = await Hod.findOne({ empid })
 
     if (existing) {
-      console.log('⚠️ HOD already exists — skipping seed')
+      console.log('HOD already exists skipping seed')
       process.exit(0)
     }
 
@@ -45,7 +45,7 @@ async function seedHod() {
     const hod = await Hod.create({
       name: 'Demo HOD',
       empid,
-      email: 'hod.cse@college.edu',
+      email: 'hod.it@college.edu',
       departmentId: department._id,
       passwordHash,
       role: 'HOD',

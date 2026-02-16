@@ -3,6 +3,8 @@ import NextAuth from 'next-auth'
 declare module 'next-auth' {
   interface Session {
     user: {
+      deptName: string
+      deptCode: string
       id: string
       name: string
       empid: string

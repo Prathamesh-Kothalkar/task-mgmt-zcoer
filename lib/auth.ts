@@ -21,7 +21,7 @@ export const authOptions: NextAuthOptions = {
 
         await dbConnect()
 
-        const hod = await Hod.findOne({ empid: credentials.empid })
+        const hod = await Hod.findOne({ empid: credentials.empid }).populate('departmentId')
 
         if (!hod) {
           throw new Error('Invalid Employee ID or password')
@@ -73,7 +73,9 @@ export const authOptions: NextAuthOptions = {
           empid: hod.empid,
           email: hod.email,
           role: hod.role,
-          department: hod.departmentId.toString(),
+          department: (hod.departmentId as any)._id.toString(),
+          deptName:(hod.departmentId as any).name,
+          deptCode:(hod.departmentId as any).code,
         }
       },
     }),
@@ -96,6 +98,8 @@ export const authOptions: NextAuthOptions = {
         token.email = user.email
         token.role = (user as any).role
         token.department = (user as any).department
+        token.deptName=(user as any).deptName
+        token.deptCode=(user as any).deptCode
       }
       return token
     },
@@ -107,7 +111,10 @@ export const authOptions: NextAuthOptions = {
         session.user.empid = token.empid as string
         session.user.email = token.email as string
         session.user.role = token.role as string
-        session.user.department = token.department as string
+        session.user.department = token.department as string 
+        session.user.deptName=token.deptName as string
+        session.user.deptCode=token.deptCode as string
+        
       }
       return session
     },

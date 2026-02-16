@@ -70,7 +70,7 @@ export default function ProfilePage() {
                     <div className="h-8 w-8 rounded-lg bg-primary/5 flex items-center justify-center mr-3">
                       <Building className="h-4 w-4 text-primary" />
                     </div>
-                    {user?.department ?? 'Computer Engineering'}
+                    {user?.deptName?? 'Computer Engineering'}
                   </p>
                 </div>
                 <div className="space-y-1.5 group">
@@ -95,7 +95,7 @@ export default function ProfilePage() {
                     {user?.email ?? 'hod.computer@zealedu.in'}
                   </p>
                 </div>
-                <div className="space-y-1.5 group">
+                {/* <div className="space-y-1.5 group">
                   <p className="text-[9px] font-black uppercase text-muted-foreground/60 tracking-widest group-hover:text-primary/60 transition-colors">
                     Contact Number
                   </p>
@@ -103,9 +103,9 @@ export default function ProfilePage() {
                     <div className="h-8 w-8 rounded-lg bg-primary/5 flex items-center justify-center mr-3">
                       <Phone className="h-4 w-4 text-primary" />
                     </div>
-                    +91 98765 43210
+                  
                   </p>
-                </div>
+                </div> */}
               </div>
             </CardContent>
           </Card>
