@@ -134,7 +134,12 @@ export async function POST(req: NextRequest) {
           <p>Your staff account has been created.</p>
           <p><strong>Employee ID:</strong> ${staff.empId}</p>
           <p><strong>Password:</strong> ${plainPassword}</p>
-          <p style="color:red"><b>You can change your Password by Click this unique link: <a  href="${process.env.URL}/reset-password?ref=${resetToke}">Link Here</a></b></p>
+          <p style="color:red"><b>You can change your Password by Clicking this unique link: <a  href="${process.env.URL}/reset-password?ref=${resetToke}">Link Here</a></b></p>
+           <p>
+              <strong>Regards,</strong><br>
+              Task Management System<br>
+              ZEAL Institute of Engineering & Research
+            </p>
         `,
       })
     } catch (emailErr) {
